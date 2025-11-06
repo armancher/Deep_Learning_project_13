@@ -2,16 +2,11 @@
 __pycache__/
 *.pyc
 
-# Data & Models
-project/data/*
-project/results/*
-project/models/*.pt
-project/models/*.bin
-project/models/*.h5
+# Model files
+models/*.pt
+models/*.bin
+models/*.h5
 
-# Jupyter / Colab
-.ipynb_checkpoints/
-*.ipynb_save
 
 # Virtual environment
 .venv/
