@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+
+# Data & Models
+project/data/*
+project/results/*
+project/models/*.pt
+project/models/*.bin
+project/models/*.h5
+
+# Jupyter / Colab
+.ipynb_checkpoints/
+*.ipynb_save
+
+# Virtual environment
+.venv/
+env/
+venv/
+
+# OS files
+.DS_Store
+Thumbs.db
+drive/
