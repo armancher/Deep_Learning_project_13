@@ -1,0 +1,7 @@
+{
+  "num_characters": 10810591,
+  "num_tokens": 2473510,
+  "chars_per_token": 4.370546712970637,
+  "source_file": "data\\train.txt",
+  "created_at": "2025-11-21T16:37:22.228327"
+}
