@@ -7,10 +7,10 @@ class CharTokenizer(BaseTokenizer):
         self.itos = {i: ch for ch, i in self.stoi.items()}
         self._vocab_size = len(self.stoi)
 
-    def encode(self, text):
+    def encode(self, text: str) -> list[int]:
         return [self.stoi[ch] for ch in text if ch in self.stoi]
 
-    def decode(self, ids):
+    def decode(self, ids: list[int]) -> str:
         return "".join(self.itos[i] for i in ids)
 
     @property

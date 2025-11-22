@@ -3,7 +3,7 @@ import sys
 import argparse
 import torch
 
-# Ensure project root is accessible
+# Ensure project root visible
 THIS_DIR = os.path.dirname(__file__)
 PROJECT_ROOT = os.path.abspath(os.path.join(THIS_DIR, ".."))
 sys.path.insert(0, PROJECT_ROOT)
@@ -12,43 +12,41 @@ from models.nanogpt_wrapper import create_nanogpt_model
 from tokenizers import get_tokenizer
 
 
+# ---------------------------------------
+# Sampling function
+# ---------------------------------------
 def sample(model, idx, max_new_tokens, block_size, temperature=1.0, top_k=None):
-    """
-    idx: (1, T) tensor of token ids
-    """
     model.eval()
     for _ in range(max_new_tokens):
         idx_cond = idx[:, -block_size:]
+
         logits, _ = model(idx_cond, idx_cond)
 
         logits = logits[:, -1, :] / temperature
 
         if top_k is not None:
-            v, _ = torch.topk(logits, top_k)
-            logits[logits < v[:, [-1]]] = -float('inf')
+            vals, _ = torch.topk(logits, top_k)
+            logits[logits < vals[:, [-1]]] = -float("inf")
 
         probs = torch.softmax(logits, dim=-1)
         next_id = torch.multinomial(probs, num_samples=1)
-        idx = torch.cat((idx, next_id), dim=1)
+        idx = torch.cat([idx, next_id], dim=1)
 
     return idx
 
 
 def main():
-    parser = argparse.ArgumentParser()
 
-    parser.add_argument("--checkpoint", required=True,
-                        help="Path to trained checkpoint (.pt)")
-    parser.add_argument("--prompt", type=str, default="Hello",
-                        help="Initial text prompt")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--checkpoint", required=True)
+    parser.add_argument("--prompt", type=str, default="Hello")
     parser.add_argument("--max_new_tokens", type=int, default=200)
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--top_k", type=int, default=None)
-    parser.add_argument("--device", type=str, default="auto")
+    parser.add_argument("--device", default="auto")
 
     args = parser.parse_args()
 
-    # Device
     if args.device == "auto":
         device = "cuda" if torch.cuda.is_available() else "cpu"
     else:
@@ -61,22 +59,22 @@ def main():
     ckpt = torch.load(args.checkpoint, map_location=device)
 
     tokenizer_name = ckpt["tokenizer_name"]
-    vocab_size = ckpt["config"]["vocab_size"]
+    config = ckpt["config"]
+    vocab_size = config["vocab_size"]
+    vocab_size_arg = ckpt.get("vocab_size_arg", vocab_size)
 
-    # Load tokenizer matching the model
-    print(f"Loading tokenizer: {tokenizer_name}")
-    if tokenizer_name in ["char", "bpe", "byte_bpe"]:
-        # Reconstruct tokenizer vocabulary by training on the prompt only?
-        # No — better: prompt is small, so we treat tokenizer as fixed.
-        # Use vocab_size_arg so BPE loads same vocab size.
-        tok = get_tokenizer(tokenizer_name,
-                            text=args.prompt,
-                            vocab_size=ckpt["vocab_size_arg"])
+    print(f"Tokenizer used: {tokenizer_name}")
+
+    # Load tokenizer
+    if tokenizer_name == "byt5":
+        tok = get_tokenizer("byt5")
     else:
-        tok = get_tokenizer("byte")
+        # For BPE/char we rebuild vocab from prompt (tiny)
+        # but this assumes merges/id maps were stored —
+        # simple project version → train on prompt's chars
+        tok = get_tokenizer(tokenizer_name, text=args.prompt, vocab_size=vocab_size_arg)
 
     # Create model
-    config = ckpt["config"]
     model, _ = create_nanogpt_model(
         vocab_size=vocab_size,
         block_size=config["block_size"],
@@ -91,8 +89,8 @@ def main():
     encoded = tok.encode(args.prompt)
     idx = torch.tensor(encoded, dtype=torch.long, device=device)[None, :]
 
-    # Generate tokens
     print("\nGenerating...\n")
+
     out = sample(
         model,
         idx,
@@ -102,8 +100,8 @@ def main():
         top_k=args.top_k,
     )
 
-    out_ids = out[0].tolist()
-    text = tok.decode(out_ids)
+    tokens = out[0].tolist()
+    text = tok.decode(tokens)
     print(text)
 
 
