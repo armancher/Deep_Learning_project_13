@@ -1,16 +1,15 @@
-from .base import Tokenizer
+from .base_tokenizer import BaseTokenizer
 
-
-class ByteTokenizer(Tokenizer):
+class ByteTokenizer(BaseTokenizer):
     def __init__(self):
-        super().__init__()
-
-    def train(self, text=None, vocab_size=256, verbose=False):
-        # nothing to train, just keep vocab = bytes 0..255
-        pass
+        self._vocab_size = 256
 
     def encode(self, text):
         return list(text.encode("utf-8"))
 
     def decode(self, ids):
         return bytes(ids).decode("utf-8", errors="replace")
+
+    @property
+    def vocab_size(self):
+        return self._vocab_size
