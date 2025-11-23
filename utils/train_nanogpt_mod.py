@@ -151,7 +151,7 @@ def main():
     train_iter = iter(train_loader)
     t0 = time.time()
 
-    while step < args.max_steps:
+    while step <= args.max_steps:
 
         try:
             xb, yb = next(train_iter)
