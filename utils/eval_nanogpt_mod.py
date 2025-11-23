@@ -1,6 +1,8 @@
 import os
 import sys
 import argparse
+import json
+import math
 import torch
 from torch.utils.data import Dataset, DataLoader
 
@@ -13,9 +15,6 @@ from models.nanogpt_wrapper import create_nanogpt_model
 from tokenizers import get_tokenizer
 
 
-# ==================================
-# Dataset over token IDs
-# ==================================
 class IDDataset(Dataset):
     def __init__(self, ids, block_size):
         self.ids = ids
@@ -57,17 +56,17 @@ def evaluate(model, loader, device):
 
 
 def main():
-
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--block_size", type=int, default=256)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--device", default="auto")
+    parser.add_argument("--metrics_out", type=str, default=None,
+                        help="Optional path to save metrics as JSON")
 
     args = parser.parse_args()
 
-    # Device
     if args.device == "auto":
         device = "cuda" if torch.cuda.is_available() else "cpu"
     else:
@@ -80,25 +79,26 @@ def main():
     tokenizer_name = ckpt["tokenizer_name"]
     vocab_size = ckpt["config"]["vocab_size"]
     vocab_size_arg = ckpt.get("vocab_size_arg", vocab_size)
+    num_params = ckpt.get("num_params", None)
+    train_steps = ckpt.get("train_steps", None)
+    train_time_sec = ckpt.get("train_time_sec", None)
+    train_steps_per_sec = ckpt.get("train_steps_per_sec", None)
+    train_dataset_path = ckpt.get("dataset_path", None)
 
     print(f"Tokenizer used in model: {tokenizer_name}")
     print(f"Vocabulary size from checkpoint: {vocab_size}")
 
-    # Load evaluation text
     text = load_text(args.dataset)
     print(f"Loaded {len(text)} raw chars for evaluation.")
 
-    # Load tokenizer (must match training)
     if tokenizer_name == "byt5":
         tok = get_tokenizer("byt5")
     else:
         tok = get_tokenizer(tokenizer_name, text=text, vocab_size=vocab_size_arg)
 
-    # Encode dataset
     eval_ids = tok.encode(text)
     print(f"Eval tokens: {len(eval_ids)}")
 
-    # Recreate model
     cfg = ckpt["config"]
     model, _ = create_nanogpt_model(
         vocab_size=vocab_size,
@@ -113,16 +113,49 @@ def main():
     eval_dataset = IDDataset(eval_ids, args.block_size)
     eval_loader = DataLoader(eval_dataset, batch_size=args.batch_size, shuffle=False)
 
-    # Compute loss & perplexity
     loss = evaluate(model, eval_loader, device)
     perplexity = float(torch.exp(torch.tensor(loss)))
+
+    bits_per_token = loss / math.log(2.0)
+    tokens_per_char = len(eval_ids) / max(len(text), 1)
+    bits_per_char = bits_per_token * tokens_per_char
 
     print("====================================")
     print(" Evaluation Results")
     print("====================================")
-    print(f"Loss:       {loss:.4f}")
-    print(f"Perplexity: {perplexity:.4f}")
+    print(f"Loss:           {loss:.4f}")
+    print(f"Perplexity:     {perplexity:.4f}")
+    print(f"Bits/token:     {bits_per_token:.4f}")
+    print(f"Bits/character: {bits_per_char:.4f}")
+    if train_steps_per_sec is not None:
+        print(f"Train steps/sec: {train_steps_per_sec:.4f}")
+    if num_params is not None:
+        print(f"Model parameters: {num_params}")
     print("====================================")
+
+    if args.metrics_out is not None:
+        metrics = {
+            "checkpoint": args.checkpoint,
+            "dataset_eval": args.dataset,
+            "dataset_train": train_dataset_path,
+            "tokenizer": tokenizer_name,
+            "vocab_size": vocab_size,
+            "loss": loss,
+            "perplexity": perplexity,
+            "bits_per_token": bits_per_token,
+            "bits_per_char": bits_per_char,
+            "eval_tokens": len(eval_ids),
+            "eval_chars": len(text),
+            "num_params": num_params,
+            "train_steps": train_steps,
+            "train_time_sec": train_time_sec,
+            "train_steps_per_sec": train_steps_per_sec,
+        }
+
+        os.makedirs(os.path.dirname(args.metrics_out), exist_ok=True)
+        with open(args.metrics_out, "w", encoding="utf-8") as f:
+            json.dump(metrics, f, indent=2)
+        print(f"Saved metrics JSON → {args.metrics_out}")
 
 
 if __name__ == "__main__":

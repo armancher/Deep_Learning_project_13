@@ -140,8 +140,8 @@ def main():
     )
     model.to(device)
 
-    print(model)
-    print(f"Total parameters: {sum(p.numel() for p in model.parameters())}")
+    num_params = sum(p.numel() for p in model.parameters())
+    print(f"Total parameters: {num_params}")
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
 
@@ -149,10 +149,10 @@ def main():
 
     step = 0
     train_iter = iter(train_loader)
-    t0 = time.time()
+    train_start_time = time.time()
+    last_log_time = train_start_time
 
-    while step <= args.max_steps:
-
+    while step < args.max_steps:
         try:
             xb, yb = next(train_iter)
         except StopIteration:
@@ -167,13 +167,17 @@ def main():
         optimizer.step()
 
         if step % 50 == 0:
-            dt = time.time() - t0
+            now = time.time()
+            dt = now - last_log_time
             print(f"step {step:5d} | loss {loss.item():.4f} | time {dt:.1f}s")
-            t0 = time.time()
+            last_log_time = now
 
         if step > 0 and step % args.eval_interval == 0:
             val_loss = evaluate(model, val_loader, device)
             print(f"--- Step {step} | Val loss = {val_loss:.4f}")
+
+            elapsed = time.time() - train_start_time
+            steps_per_sec = step / max(elapsed, 1e-8)
 
             ckpt_path = os.path.join(
                 args.save_path,
@@ -189,10 +193,16 @@ def main():
                     "n_layer": 6,
                     "n_head": 6,
                     "n_embd": 384,
-                }
+                },
+                "num_params": num_params,
+                "train_steps": step,
+                "train_time_sec": elapsed,
+                "train_steps_per_sec": steps_per_sec,
+                "dataset_path": args.dataset,
             }, ckpt_path)
 
             print(f"Saved checkpoint → {ckpt_path}")
+            print(f"(avg steps/sec so far: {steps_per_sec:.3f})")
 
         step += 1
 
