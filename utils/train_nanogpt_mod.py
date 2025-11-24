@@ -147,18 +147,16 @@ def main():
 
     os.makedirs(args.save_path, exist_ok=True)
 
-    step = 0
-    train_iter = iter(train_loader)
     train_start_time = time.time()
     last_log_time = train_start_time
 
-    while step < args.max_steps:
-        try:
-            xb, yb = next(train_iter)
-        except StopIteration:
-            train_iter = iter(train_loader)
-            xb, yb = next(train_iter)
+    # ============================================
+    # FINAL, CORRECT, STABLE TRAIN LOOP
+    # ============================================
+    for step in range(1, args.max_steps + 1):
 
+        # One batch = one training step
+        xb, yb = next(iter(train_loader))
         xb, yb = xb.to(device), yb.to(device)
 
         logits, loss = model(xb, yb)
@@ -166,15 +164,17 @@ def main():
         loss.backward()
         optimizer.step()
 
-        if step % 50 == 0:
+        # Logging every 50 steps
+        if step % 50 == 0 or step == 1:
             now = time.time()
             dt = now - last_log_time
             print(f"step {step:5d} | loss {loss.item():.4f} | time {dt:.1f}s")
             last_log_time = now
 
-        if step > 0 and step % args.eval_interval == 0:
+        # Save checkpoint
+        if step % args.eval_interval == 0:
             val_loss = evaluate(model, val_loader, device)
-            print(f"--- Step {step} | Val loss = {val_loss:.4f}")
+            print(f"--- Step {step} | Val loss = {val_loss:.4f}", flush=True)
 
             elapsed = time.time() - train_start_time
             steps_per_sec = step / max(elapsed, 1e-8)
@@ -201,10 +201,8 @@ def main():
                 "dataset_path": args.dataset,
             }, ckpt_path)
 
-            print(f"Saved checkpoint → {ckpt_path}")
+            print(f"Saved checkpoint → {ckpt_path}", flush=True)
             print(f"(avg steps/sec so far: {steps_per_sec:.3f})")
-
-        step += 1
 
     print("Training complete.")
 
