@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+
+# Model files
+models/*.pt
+models/*.bin
+models/*.h5
+
+
+# Virtual environment
+.venv/
+env/
+venv/
+
+# OS files
+.DS_Store
+Thumbs.db
+drive/
