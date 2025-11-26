@@ -1,0 +1,17 @@
+{
+  "checkpoint": "checkpoints/WikiText/nanogpt_byt5_step1000.pt",
+  "dataset_eval": "data/WikiText.txt",
+  "dataset_train": "data/Wikitext.txt",
+  "tokenizer": "byt5",
+  "vocab_size": 256,
+  "loss": 1.5369681865617242,
+  "perplexity": 4.650469779968262,
+  "bits_per_token": 2.217376380756703,
+  "bits_per_char": 2.220803998793388,
+  "eval_tokens": 10827302,
+  "eval_chars": 10810591,
+  "num_params": 10844160,
+  "train_steps": 1000,
+  "train_time_sec": 2495.573377609253,
+  "train_steps_per_sec": 0.4007095158860827
+}
