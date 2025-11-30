@@ -21,11 +21,13 @@ class IDDataset(Dataset):
         self.block_size = block_size
 
     def __len__(self):
-        return max(0, len(self.ids) - self.block_size)
+        # number of non-overlapping blocks
+        return (len(self.ids) - 1) // self.block_size
 
     def __getitem__(self, idx):
-        x = torch.tensor(self.ids[idx:idx+self.block_size], dtype=torch.long)
-        y = torch.tensor(self.ids[idx+1:idx+self.block_size+1], dtype=torch.long)
+        start = idx * self.block_size
+        x = torch.tensor(self.ids[start:start + self.block_size], dtype=torch.long)
+        y = torch.tensor(self.ids[start + 1:start + 1 + self.block_size], dtype=torch.long)
         return x, y
 
 
