@@ -12,7 +12,7 @@ models/*.h5
 .venv/
 env/
 venv/
-
+myenv/
 # OS files
 .DS_Store
 Thumbs.db

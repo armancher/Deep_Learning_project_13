@@ -174,7 +174,7 @@ def main():
         n_head=cfg["n_head"],
         n_embd=cfg["n_embd"],
     )
-    model.load_state_dict(ckpt["model_state_dict"])
+    model.load_state_dict(ckpt["model_state_dict"], strict=False)
     model.to(device)
 
     # Evaluation

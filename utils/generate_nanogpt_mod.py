@@ -82,7 +82,7 @@ def main():
         n_head=config["n_head"],
         n_embd=config["n_embd"],
     )
-    model.load_state_dict(ckpt["model_state_dict"])
+    model.load_state_dict(ckpt["model_state_dict"], strict=False)
     model.to(device)
 
     # Encode prompt
