@@ -128,7 +128,8 @@ def main():
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--metrics_out", type=str, default=None,
-                        help="Optional path to save enhanced metrics as JSON")
+                    help="Optional path to save enhanced metrics as JSON")
+
 
     args = parser.parse_args()
 
@@ -152,6 +153,21 @@ def main():
 
     print(f"Tokenizer used in model: {tokenizer_name}")
     print(f"Vocabulary size from checkpoint: {vocab_size}")
+
+    # Auto-generate metrics filename if user didn't supply one
+    if args.metrics_out is None:
+        step_str = f"step{train_steps}" if train_steps is not None else "stepUnknown"
+        tokenizer_str = tokenizer_name.replace("/", "_")  # sanitize
+    
+        auto_name = f"enhanced_metrics_{tokenizer_str}_{step_str}.json"
+
+        # Always save inside results/ directory
+        results_dir = "results"
+        os.makedirs(results_dir, exist_ok=True)
+
+        args.metrics_out = os.path.join(results_dir, auto_name)
+
+        print(f"Auto-generated metrics filename → {args.metrics_out}")
 
     # Load and tokenize dataset
     text = load_text(args.dataset)
