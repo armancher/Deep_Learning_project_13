@@ -4,8 +4,36 @@ import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 
+# Fixed order and colors for all plots
+TOKEN_ORDER = ["byte", "char", "BPE"]
+TOKEN_COLORS = {
+    "byte": "#A67C00",   # dark gold
+    "char": "#8C2F39",   # deep brick red
+    "BPE":  "#1A4B84",   # midnight blue
+}
+
+
+
 def safe_get(d, key, default=None):
     return d[key] if key in d and d[key] is not None else default
+
+def normalize_tokenizer_key(name: str) -> str:
+    """
+    Normalize tokenizer names coming from JSON into a small fixed set:
+    - byt5 / byte -> "byte"
+    - char       -> "char"
+    - bpe / BPE  -> "BPE"
+    """
+    if name is None:
+        return "unknown"
+    lower = name.lower()
+    if "byt5" in lower or lower == "byte":
+        return "byte"
+    if "char" in lower:
+        return "char"
+    if "bpe" in lower:
+        return "BPE"
+    return name  # fallback, will just be plotted as-is (gray)
 
 def load_metrics(files):
     records = []
@@ -22,7 +50,10 @@ def load_metrics(files):
 
             rec["train_steps_per_sec"] = safe_get(rec, "train_steps_per_sec", float("nan"))
             rec["num_params"] = safe_get(rec, "num_params", 0)
-            rec["tokenizer"] = safe_get(rec, "tokenizer", "unknown")
+
+            raw_tok = safe_get(rec, "tokenizer", "unknown")
+            rec["tokenizer"] = normalize_tokenizer_key(raw_tok)
+
             rec["checkpoint"] = safe_get(rec, "checkpoint", path)
 
             rec["bits_per_byte"] = safe_get(rec, "bits_per_byte", float("nan"))
@@ -33,6 +64,9 @@ def load_metrics(files):
             tokenization_eff = safe_get(rec, "tokenization_efficiency", {})
             rec["tokens_per_char"] = safe_get(tokenization_eff, "tokens_per_char", float("nan"))
             rec["chars_per_token"] = safe_get(tokenization_eff, "chars_per_token", float("nan"))
+
+            # Convenience field for plotting model size in millions
+            rec["size_m"] = (rec["num_params"] / 1e6) if rec["num_params"] else 0.0
 
             records.append(rec)
     return records
@@ -86,32 +120,60 @@ def print_detailed_comparison(records):
         print(f"  Speed:       {r['train_steps_per_sec']:.2f} {'(best)' if r['train_steps_per_sec']==best_speed else ''}")
         print(f"  Tokenization: {r['tokens_per_char']:.3f} tokens/char")
 
+def _prepare_metric_data(records, metric_key):
+    """
+    Build ordered (labels, values) lists for a given metric using fixed TOKEN_ORDER.
+    """
+    token_to_value = {}
+    for r in records:
+        tok = r["tokenizer"]
+        val = r.get(metric_key, float("nan"))
+        token_to_value[tok] = val
+
+    labels = []
+    values = []
+    for tok in TOKEN_ORDER:
+        if tok in token_to_value:
+            labels.append(tok)
+            v = token_to_value[tok]
+            if v is None or np.isnan(v):
+                v = 0.0
+            values.append(v)
+
+    return labels, values
+
 def make_bar_plot(records, metric_key, ylabel, outfile, higher_better=False):
-    labels = [r["tokenizer"] for r in records]
-    raw_values = [r.get(metric_key, float("nan")) for r in records]
+    labels, values = _prepare_metric_data(records, metric_key)
 
-    # Replace NaN with 0 for plotting
-    values = [0 if (v is None or np.isnan(v)) else v for v in raw_values]
+    if len(values) == 0:
+        print(f"No values for {metric_key}, skipping plot {outfile}")
+        return
 
-    # Colors
-    best_val = max(values) if higher_better else min(values)
-    colors = ['lightgreen' if v == best_val else 'lightcoral' for v in values]
+    ymax = max(values)
+    top = ymax * 1.25 if ymax != 0 else 1.0
+    pad = top * 0.03
+
+    colors = [TOKEN_COLORS.get(label, "gray") for label in labels]
 
     plt.figure(figsize=(10, 6))
     bars = plt.bar(labels, values, color=colors, alpha=0.85, edgecolor='black')
+    plt.ylim(0, top)
 
     # Labels above bars
-    pad = max(values) * 0.05 if max(values) != 0 else 0.1
     for bar, value in zip(bars, values):
-        plt.text(bar.get_x() + bar.get_width()/2,
-                 bar.get_height() + pad,
-                 f'{value:.4f}',
-                 ha='center', va='bottom', fontweight='bold')
+        plt.text(
+            bar.get_x() + bar.get_width()/2,
+            bar.get_height() + pad,
+            f'{value:.4f}',
+            ha='center',
+            va='bottom',
+            fontweight='bold'
+        )
 
     plt.ylabel(ylabel, fontsize=12)
-    plt.xlabel("Tokenizer", fontsize=12)
+    #plt.xlabel("Tokenizer", fontsize=12)
     plt.title(f"Tokenizer Comparison: {ylabel}", fontsize=14, fontweight='bold')
-    plt.grid(axis='y', alpha=0.3, linestyle='--')
+    #plt.grid(axis='y', alpha=0.3, linestyle='--')
     plt.tight_layout()
     plt.savefig(outfile, dpi=150, bbox_inches='tight')
     print(f"Saved plot → {outfile}")
@@ -130,22 +192,29 @@ def create_comprehensive_chart(records, out_dir):
     axes = axes.flatten()
 
     for idx, (metric_key, title, higher_better) in enumerate(metrics):
-        labels = [r["tokenizer"] for r in records]
-        raw_values = [r.get(metric_key, float("nan")) for r in records]
-        values = [0 if (v is None or np.isnan(v)) else v for v in raw_values]
+        labels, values = _prepare_metric_data(records, metric_key)
+        if len(values) == 0:
+            continue
 
-        best_val = max(values) if higher_better else min(values)
-        colors = ['lightgreen' if v == best_val else 'lightcoral' for v in values]
+        ymax = max(values)
+        top = ymax * 1.25 if ymax != 0 else 1.0
+        pad = top * 0.03
+
+        colors = [TOKEN_COLORS.get(label, "gray") for label in labels]
 
         bars = axes[idx].bar(labels, values, color=colors, alpha=0.8, edgecolor='black')
         axes[idx].set_title(title, fontweight='bold')
+        axes[idx].set_ylim(0, top)
 
-        pad = max(values) * 0.05 if max(values) != 0 else 0.1
         for bar, value in zip(bars, values):
-            axes[idx].text(bar.get_x() + bar.get_width()/2,
-                           bar.get_height() + pad,
-                           f'{value:.4f}',
-                           ha='center', va='bottom', fontsize=9)
+            axes[idx].text(
+                bar.get_x() + bar.get_width()/2,
+                bar.get_height() + pad,
+                f'{value:.4f}',
+                ha='center',
+                va='bottom',
+                fontsize=9
+            )
 
     for idx in range(len(metrics), len(axes)):
         fig.delaxes(axes[idx])
@@ -154,6 +223,45 @@ def create_comprehensive_chart(records, out_dir):
     output_path = os.path.join(out_dir, "comprehensive_comparison.png")
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     print(f"Saved comprehensive chart → {output_path}")
+    plt.close()
+
+def make_two_panel_plot(records, metrics, outfile):
+    """
+    Create a 1x2 (one row, two columns) figure for LaTeX:
+    metrics: list of (metric_key, ylabel, higher_better)
+    """
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+    for ax, (metric_key, ylabel, higher_better) in zip(axes, metrics):
+        labels, values = _prepare_metric_data(records, metric_key)
+        if len(values) == 0:
+            continue
+
+        ymax = max(values)
+        top = ymax * 1.25 if ymax != 0 else 1.0
+        pad = top * 0.03
+
+        colors = [TOKEN_COLORS.get(label, "gray") for label in labels]
+
+        bars = ax.bar(labels, values, color=colors, alpha=0.85, edgecolor='black')
+        ax.set_ylim(0, top)
+        ax.set_title(ylabel, fontsize=12, fontweight='bold')
+        #ax.set_xlabel("Tokenizer", fontsize=10)
+        #ax.grid(axis='y', alpha=0.3, linestyle='--')
+
+        for bar, value in zip(bars, values):
+            ax.text(
+                bar.get_x() + bar.get_width()/2,
+                bar.get_height() + pad,
+                f'{value:.4f}',
+                ha='center',
+                va='bottom',
+                fontsize=9
+            )
+
+    fig.tight_layout()
+    plt.savefig(outfile, dpi=150, bbox_inches='tight')
+    print(f"Saved 1x2 plot → {outfile}")
     plt.close()
 
 def main():
@@ -172,25 +280,74 @@ def main():
         print_detailed_comparison(records)
         create_comprehensive_chart(records, args.out_dir)
 
-    make_bar_plot(records, "bits_per_char", "Bits per Character (lower better)",
-                  os.path.join(args.out_dir, "bits_per_char.png"))
+    # Single-metric bar plots
+    make_bar_plot(
+        records,
+        "bits_per_char",
+        "Bits per Character",
+        os.path.join(args.out_dir, "bits_per_char.png")
+    )
 
-    make_bar_plot(records, "bits_per_byte", "Bits per Byte (lower better)",
-                  os.path.join(args.out_dir, "bits_per_byte.png"))
+    make_bar_plot(
+        records,
+        "bits_per_byte",
+        "Bits per Byte",
+        os.path.join(args.out_dir, "bits_per_byte.png")
+    )
 
-    make_bar_plot(records, "compression_ratio_chars", "Compression Ratio (higher better)",
-                  os.path.join(args.out_dir, "compression_ratio.png"), higher_better=True)
+    make_bar_plot(
+        records,
+        "compression_ratio_chars",
+        "Compression Ratio (higher better)",
+        os.path.join(args.out_dir, "compression_ratio.png"),
+        higher_better=True
+    )
 
-    make_bar_plot(records, "perplexity", "Perplexity (lower better)",
-                  os.path.join(args.out_dir, "perplexity.png"))
+    make_bar_plot(
+        records,
+        "perplexity",
+        "Perplexity (lower better)",
+        os.path.join(args.out_dir, "perplexity.png")
+    )
 
-    make_bar_plot(records, "train_steps_per_sec", "Training Speed (higher better)",
-                  os.path.join(args.out_dir, "training_speed.png"), higher_better=True)
+    make_bar_plot(
+        records,
+        "train_steps_per_sec",
+        "Training Speed (higher better)",
+        os.path.join(args.out_dir, "training_speed.png"),
+        higher_better=True
+    )
 
-    # Model size
-    size_records = [{"tokenizer": r["tokenizer"], "size_m": r["num_params"]/1e6} for r in records]
-    make_bar_plot(size_records, "size_m", "Model Size (M parameters)",
-                  os.path.join(args.out_dir, "model_size.png"))
+    # Model size plot (uses precomputed size_m in records)
+    make_bar_plot(
+        records,
+        "size_m",
+        "Model Size (M parameters, lower better)",
+        os.path.join(args.out_dir, "model_size.png")
+    )
+
+    # 1x2 plots for LaTeX
+    # Figure 1: bits per char + bits per byte
+    bpc_bpb_metrics = [
+        ("bits_per_char", "Bits per Character (lower better)", False),
+        ("bits_per_byte", "Bits per Byte (lower better)", False),
+    ]
+    make_two_panel_plot(
+        records,
+        bpc_bpb_metrics,
+        os.path.join(args.out_dir, "bpc_bpb_1x2.png")
+    )
+
+    # Figure 2: model size + training steps per second
+    size_speed_metrics = [
+        ("size_m", "Model Size (M parameters, lower better)", False),
+        ("train_steps_per_sec", "Training Speed (higher better)", True),
+        ]
+    make_two_panel_plot(
+        records,
+        size_speed_metrics,
+        os.path.join(args.out_dir, "size_speed_1x2.png")
+    )
 
     print(f"\nAll plots saved to: {args.out_dir}/")
 
