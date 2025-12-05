@@ -1,0 +1,35 @@
+{
+  "loss": 2.969326367745033,
+  "perplexity": 19.478792190551758,
+  "bits_per_token": 4.283832425526597,
+  "bits_per_character": 1.6457802360800922,
+  "bits_per_byte": 1.6432401172651616,
+  "compression_ratio_chars": 2.602918865844324,
+  "compression_ratio_bytes": 2.6069424550419105,
+  "tokens_per_parameter": 0.18031097355128034,
+  "total_bytes_processed": 10827302,
+  "total_tokens_processed": 4153257,
+  "total_chars_processed": 10810591,
+  "tokenization_efficiency": {
+    "tokens_per_char": 0.3841840839228864,
+    "chars_per_token": 2.602918865844324,
+    "bytes_per_token": 2.6069424550419105,
+    "sample_tokens_per_char": 0.45454545454545453,
+    "sample_compression_ratio": 2.2,
+    "sample_bits_per_byte": 1.9471965570575442
+  },
+  "training_efficiency": {
+    "train_steps_per_sec": 0.5525134729500735,
+    "estimated_tokens_per_second": 4526.190370407002
+  },
+  "timestamp": "2025-12-02T18:02:20.651820",
+  "checkpoint": "checkpoints/WikiText/nanogpt_bpe_step1000.pt",
+  "dataset_eval": "data/Wikitext.txt",
+  "dataset_train": "data/Wikitext.txt",
+  "tokenizer": "bpe",
+  "vocab_size": 32000,
+  "num_params": 23033856,
+  "train_steps": 1000,
+  "train_time_sec": 1809.910615682602,
+  "train_steps_per_sec": 0.5525134729500735
+}

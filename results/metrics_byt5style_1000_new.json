@@ -1,0 +1,14 @@
+{
+  "checkpoint": "checkpoints_byt5_new/nanogpt_byt5_byt5style_step1000.pt",
+  "tokenizer": "byt5-byt5style",
+  "vocab_size": 256,
+  "loss": 1.2788317864795902,
+  "bits_per_token": 1.8449642764852785,
+  "bits_per_char": 1.847816220289678,
+  "eval_tokens": 10827302,
+  "eval_chars": 10810591,
+  "num_params": 38091776,
+  "train_steps": 1000,
+  "train_time_sec": 1092.1121799945831,
+  "train_steps_per_sec": 0.9156568512997996
+}
